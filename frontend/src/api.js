@@ -9,6 +9,7 @@ export async function api(path, options = {}) {
   catch { throw new Error('서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.'); }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('photo-auth-expired'));
     const field = Array.isArray(data.detail) ? data.detail[0]?.loc?.at(-1) : null;
     const validation = { username: '사용자 이름은 3~30자로 입력해 주세요.', password: '비밀번호는 4~256자로 입력해 주세요.', display_name: '이름은 50자 이내로 입력해 주세요.' };
     throw new Error(typeof data.detail === 'string' ? data.detail : validation[field] || '입력 내용을 확인하고 다시 시도해 주세요.');
@@ -58,6 +59,7 @@ export async function fetchPosts({ signal, fetchImpl = fetch } = {}) {
       headers: { Accept: 'application/json', ...(localStorage.getItem('photo-access-token') ? { Authorization: `Bearer ${localStorage.getItem('photo-access-token')}` } : {}) },
       cache: 'no-store',
     });
+    if (response.status === 401) window.dispatchEvent(new Event('photo-auth-expired'));
     if (!response.ok) throw new Error('게시물을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
     return toFeedPosts(await response.json());
   } catch (error) {

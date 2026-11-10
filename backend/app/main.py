@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
         app.state.session_factory = session_factory
         app.state.storage = storage
         app.state.settings = settings
-        logger.info("Supabase 초기화 완료: 공개 피드 API를 사용할 수 있습니다.")
+        logger.info("Supabase 초기화 완료: 피드 API를 사용할 수 있습니다.")
     except (ConfigurationError, DatabaseInitializationError) as exc:
         if engine is not None:
             engine.dispose()
@@ -74,7 +74,7 @@ def create_app() -> FastAPI:
         authorization: Annotated[str | None, Header()] = None,
     ):
         from .routes import token_user
-        user = token_user(authorization, session, application.state.settings) if authorization else None
+        user = token_user(authorization, session, application.state.settings)
         like_count = select(func.count(Like.id)).where(Like.post_id == Post.id).correlate(Post).scalar_subquery()
         comment_count = select(func.count(Comment.id)).where(Comment.post_id == Post.id).correlate(Post).scalar_subquery()
         statement = (

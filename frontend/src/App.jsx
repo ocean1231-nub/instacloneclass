@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './components/Header.jsx';
 import BottomNav from './components/BottomNav.jsx';
-import Dialogs from './components/Dialogs.jsx';
+import Dialogs, { AuthPage } from './components/Dialogs.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ExplorePage from './pages/ExplorePage.jsx';
@@ -30,6 +30,7 @@ export default function App() {
   const [users, setUsers] = useState([]);
   const [profile, setProfile] = useState(() => readStorage('insta-profile', initialProfile));
   const [account, setAccount] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [modal, setModal] = useState('');
   const [activePost, setActivePost] = useState(null);
   const [search, setSearch] = useState('');
@@ -60,23 +61,23 @@ export default function App() {
   useEffect(() => {
     localStorage.removeItem('insta-demo-accounts');
     localStorage.removeItem('insta-account');
-    api('/users').then(list => setUsers(list.map(user => ({ username: user.username, name: user.display_name, avatar: user.avatar_url || defaultAvatar, bio: '', followed: false })))).catch(() => {});
-    if (!localStorage.getItem('photo-access-token')) return;
+    if (!localStorage.getItem('photo-access-token')) { setAuthChecking(false); return; }
     api('/users/me').then(user => {
       setAccount({ username: user.username });
       setProfile({ username: user.username, name: user.display_name, bio: user.bio || '', avatar: user.avatar_url || defaultAvatar });
-    }).catch(() => { localStorage.removeItem('photo-access-token'); setFeedAttempt(value => value + 1); });
+    }).catch(() => { localStorage.removeItem('photo-access-token'); setProfile(initialProfile); }).finally(() => setAuthChecking(false));
   }, []);
 
   useEffect(() => {
-    if (page !== 'user-profile' || !routeUsername) return;
+    if (!account || page !== 'user-profile' || !routeUsername) return;
     api(`/users/by-username/${encodeURIComponent(routeUsername)}`).then(user => setUsers(current => {
       const entry = { username: user.username, name: user.display_name, avatar: user.avatar_url || defaultAvatar, bio: user.bio || '', followed: current.find(item => item.username === user.username)?.followed || false };
       return [...current.filter(item => item.username !== user.username), entry];
     })).catch(() => {});
-  }, [page, routeUsername]);
+  }, [account, page, routeUsername]);
 
   useEffect(() => {
+    if (!account) return;
     const controller = new AbortController();
     setFeedStatus('loading');
     setFeedError('');
@@ -102,7 +103,7 @@ export default function App() {
       setFeedStatus('error');
     });
     return () => controller.abort();
-  }, [feedAttempt]);
+  }, [account, feedAttempt]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -111,6 +112,11 @@ export default function App() {
     return () => media.removeEventListener?.('change', onChange);
   }, []);
   useEffect(() => { const onHash = () => { setModal(''); setRoute(routeFromHash()); }; window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash); }, []);
+  useEffect(() => {
+    const expire = () => { localStorage.removeItem('photo-access-token'); setAccount(null); setProfile(initialProfile); setPosts([]); setUsers([]); setModal('auth'); setAuthError('로그인이 만료되었어요. 다시 로그인해 주세요.'); };
+    window.addEventListener('photo-auth-expired', expire);
+    return () => window.removeEventListener('photo-auth-expired', expire);
+  }, []);
   useEffect(() => { const onKeyDown = event => { if (event.key === 'Escape' && modal) setModal(''); }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown); }, [modal]);
   useEffect(() => { persistStorage('insta-theme', theme); }, [theme]);
   useEffect(() => { persistStorage('insta-users', users); }, [users]);
@@ -181,10 +187,10 @@ export default function App() {
     if (passwordLength < 4 || passwordLength > 256) { setAuthError('비밀번호는 4~256자로 입력해 주세요.'); return; }
     if (Array.from(form.name).length > 50) { setAuthError('이름은 50자 이내로 입력해 주세요.'); return; }
     setAuthError(''); setAuthPending(true);
-    try { const result = await api(`/auth/${modal === 'signup' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify({ username, password: form.password, display_name: form.name || null }) }); localStorage.setItem('photo-access-token', result.access_token); const user = await api('/users/me'); setAccount({ username: user.username }); setProfile({ username: user.username, name: user.display_name, bio: user.bio || '', avatar: user.avatar_url || defaultAvatar }); setForm({ username: '', password: '', name: '' }); setModal(''); retryFeed(); setToast('로그인했어요'); } catch (error) { setAuthError(error.message); } finally { setAuthPending(false); }
+    try { const result = await api(`/auth/${modal === 'signup' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify({ username, password: form.password, display_name: form.name || null }) }); localStorage.setItem('photo-access-token', result.access_token); const user = await api('/users/me'); setAccount({ username: user.username }); setProfile({ username: user.username, name: user.display_name, bio: user.bio || '', avatar: user.avatar_url || defaultAvatar }); setForm({ username: '', password: '', name: '' }); setModal(''); retryFeed(); setToast('로그인했어요'); } catch (error) { localStorage.removeItem('photo-access-token'); setAuthError(error.message); } finally { setAuthPending(false); }
   }
   function openAuth() { setForm({ username: '', password: '', name: '' }); setAuthError(''); setModal('auth'); }
-  function logout() { localStorage.removeItem('photo-access-token'); setAccount(null); setProfile(initialProfile); setModal(''); retryFeed(); setToast('로그아웃했어요'); }
+  function logout() { localStorage.removeItem('photo-access-token'); setAccount(null); setProfile(initialProfile); setPosts([]); setUsers([]); setForm({ username: '', password: '', name: '' }); setAuthError(''); setModal('auth'); navigate('home'); }
   async function submitProfile(event) {
     event.preventDefault(); if (!requireAuth('프로필 수정')) return;
     try { const user = await api('/users/me', { method: 'PATCH', body: JSON.stringify({ display_name: profileDraft.name, bio: profileDraft.bio, avatar_url: profileDraft.avatar === defaultAvatar ? null : profileDraft.avatar }) }); setProfile({ username: user.username, name: user.display_name, bio: user.bio, avatar: user.avatar_url || defaultAvatar }); setToast('프로필을 저장했어요'); setModal(''); retryFeed(); } catch (error) { setToast(error.message); }
@@ -221,6 +227,9 @@ export default function App() {
     chatUser, messages, currentUser: profile.username, messageDraft: draft, setMessageDraft: setDraft, onMessageSubmit: sendMessage,
     onChooseUser: startChat,
   };
+
+  if (authChecking) return <div className={`app-shell ${dark ? 'dark' : 'light'}`}><main className="auth-page"><p role="status">로그인 상태를 확인하고 있어요.</p></main></div>;
+  if (!account) return <div className={`app-shell ${dark ? 'dark' : 'light'}`}><AuthPage mode={modal === 'signup' ? 'signup' : 'auth'} form={form} setForm={setForm} onSubmit={submitAuth} onSwitch={dialogProps.onSwitch} error={authError} pending={authPending} /></div>;
 
   return <div className={`app-shell ${dark ? 'dark' : 'light'}`}>
     <div className="phone"><Header onHome={() => showPage('home')} onInbox={() => showPage('inbox')} onNotifications={() => setToast('새 알림이 없어요')} />

@@ -118,7 +118,7 @@ def make_router(get_session):
         return profile(user, session)
 
     @router.get('/users')
-    def users(q: str = '', session=Depends(get_session)):
+    def users(q: str = '', user=Depends(current), session=Depends(get_session)):
         statement = select(User).order_by(User.username)
         if q.strip():
             term = '%' + q.strip().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
@@ -126,7 +126,7 @@ def make_router(get_session):
         return [summary(u) for u in session.scalars(statement)]
 
     @router.get('/users/by-username/{username}')
-    def user_profile(username: str, session=Depends(get_session)):
+    def user_profile(username: str, user=Depends(current), session=Depends(get_session)):
         user = session.scalar(select(User).where(User.username == username.lower()))
         if not user: raise HTTPException(404, '사용자를 찾을 수 없습니다.')
         return profile(user, session)
@@ -178,7 +178,7 @@ def make_router(get_session):
         return {'like_count': session.scalar(select(func.count()).select_from(Like).where(Like.post_id == post_id)), 'is_liked': False}
 
     @router.get('/posts/{post_id}/comments')
-    def comments(post_id: int, session=Depends(get_session)):
+    def comments(post_id: int, user=Depends(current), session=Depends(get_session)):
         get_post(post_id, session)
         rows = session.execute(select(Comment, User).join(User, User.id == Comment.author_id).where(Comment.post_id == post_id).order_by(Comment.created_at, Comment.id))
         return [{'id': c.id, 'post_id': c.post_id, 'author': summary(u), 'body': c.body, 'created_at': c.created_at} for c, u in rows]

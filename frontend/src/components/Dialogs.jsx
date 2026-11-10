@@ -7,9 +7,9 @@ function Frame({ title, children, onClose, sheet = false, right = null }) {
   </section></div>;
 }
 
-function AuthDialog({ mode, form, setForm, onSubmit, onSwitch, onClose, error, pending }) {
+function AuthForm({ mode, form, setForm, onSubmit, onSwitch, error, pending }) {
   const signup = mode === 'signup';
-  return <Frame title={signup ? '가입하기' : '로그인'} onClose={onClose}><form className="auth-form" onSubmit={onSubmit}>
+  return <form className="auth-form" onSubmit={onSubmit}>
     <div className="auth-logo"><Instagram size={42} /><span>Instagram</span></div><p className="auth-intro">친구들의 사진과 소식을 만나보세요.</p>
     {signup && <input placeholder="이름" autoComplete="name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />}
     <input autoComplete="username" placeholder="사용자 이름" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })} />
@@ -19,7 +19,15 @@ function AuthDialog({ mode, form, setForm, onSubmit, onSwitch, onClose, error, p
     <button className="primary-button" disabled={pending}>{pending ? '처리 중…' : signup ? '가입하기' : '로그인'}</button>
     <div className="auth-switch">{signup ? '이미 계정이 있나요?' : '계정이 없으신가요?'} <button type="button" onClick={onSwitch}>{signup ? '로그인' : '가입하기'}</button></div>
     <p className="demo-note"><LockKeyhole size={13} /> 계정은 서버에서 안전하게 관리돼요</p>
-  </form></Frame>;
+  </form>;
+}
+
+export function AuthPage(props) {
+  return <main className="auth-page"><section className="auth-card" aria-label={props.mode === 'signup' ? '가입하기' : '로그인'}><AuthForm {...props} /></section></main>;
+}
+
+function AuthDialog(props) {
+  return <Frame title={props.mode === 'signup' ? '가입하기' : '로그인'} onClose={props.onClose}><AuthForm {...props} /></Frame>;
 }
 
 function SettingsDialog({ theme, setTheme, account, onLogout, onAuth, onClose }) {

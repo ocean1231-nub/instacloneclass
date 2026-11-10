@@ -3,12 +3,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import jwt
 import pytest
 from fastapi import HTTPException
 from pydantic import SecretStr
 
 from app.config import ConfigurationError, Settings, normalize_database_url, normalize_supabase_url
-from app.main import create_app
+from app.main import create_app, get_session
+from app.routes import key, make_router
 from app.seed import sample_image
 from app.storage import ensure_bucket
 
@@ -31,16 +33,22 @@ def test_feed_response_and_authorization():
     class Session:
         def execute(self, statement):
             return [(post, author, 3, 4)]
+        def get(self, model, user_id):
+            return author if user_id == author.id else None
+        def scalar(self, statement):
+            return None
     app = create_app()
     app.state.settings = Settings(normalize_database_url('postgres://u:p@localhost/db'), 'https://example.test', SecretStr('secret'))
     route = next(route for route in app.routes if getattr(route, 'path', None) == '/api/posts')
-    item = route.endpoint(session=Session(), q=None, author_id=None, authorization=None)[0].model_dump()
+    token = jwt.encode({'sub': str(author.id), 'exp': datetime.now(timezone.utc).timestamp() + 3600}, key(app.state.settings), algorithm='HS256')
+    item = route.endpoint(session=Session(), q=None, author_id=None, authorization=f'Bearer {token}')[0].model_dump()
     assert item['author']['username'] == 'student'
     assert (item['like_count'], item['comment_count'], item['is_liked']) == (3, 4, False)
     assert 'password_hash' not in str(item)
-    with pytest.raises(HTTPException) as error:
-        route.endpoint(session=Session(), q=None, author_id=None, authorization='Bearer invalid')
-    assert error.value.status_code == 401
+    for authorization in (None, 'Bearer invalid'):
+        with pytest.raises(HTTPException) as error:
+            route.endpoint(session=Session(), q=None, author_id=None, authorization=authorization)
+        assert error.value.status_code == 401
 
 
 def test_bucket_created_only_when_absent():
@@ -59,3 +67,10 @@ def test_bucket_created_only_when_absent():
         storage.close()
     assert requests == ['GET', 'POST', 'GET']
     assert sample_image(0).startswith(b'\x89PNG')
+
+
+def test_read_endpoints_require_authentication():
+    router = make_router(get_session)
+    for path in ('/api/users', '/api/users/by-username/{username}', '/api/posts/{post_id}/comments', '/api/users/me'):
+        route = next(route for route in router.routes if getattr(route, 'path', None) == path and 'GET' in route.methods)
+        assert any(getattr(dependency.call, '__name__', '') == 'current' for dependency in route.dependant.dependencies), path
