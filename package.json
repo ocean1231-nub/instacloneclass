@@ -1,0 +1,5 @@
+{
+  "name": "classroom-photo-feed",
+  "private": true,
+  "scripts": {"dev": "node scripts/dev.mjs", "install:frontend": "npm --prefix frontend install"}
+}

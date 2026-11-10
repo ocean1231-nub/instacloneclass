@@ -1,0 +1,5 @@
+import { Bookmark, Heart, MessageCircle, Send } from 'lucide-react';
+import { photos } from '../data.js';
+export default function ReelsPage({ post, onLike, onComment, onShare, onSave }) {
+  return <section className="reels-page"><div className="reel-placeholder"><img src={post?.image || photos[2]} alt="릴스 미리보기" /><div className="reel-overlay"><strong>릴스 미리보기</strong><span>영상 공유 기능은 다음 단계에서 만들어요</span><span>@{post?.user || 'yun.archive'}</span></div><div className="reel-actions"><button aria-label={post?.liked ? '릴스 좋아요 취소' : '릴스 좋아요'} className={post?.liked ? 'liked' : ''} onClick={onLike}><Heart fill={post?.liked ? 'currentColor' : 'none'} /><small>{post?.likes || 0}</small></button><button aria-label="릴스 댓글" onClick={onComment}><MessageCircle /><small>{post?.commentCount ?? post?.comments?.length ?? 0}</small></button><button aria-label="릴스 공유" onClick={onShare}><Send /></button><button aria-label={post?.saved ? '릴스 저장 취소' : '릴스 저장'} className={post?.saved ? 'saved' : ''} onClick={onSave}><Bookmark fill={post?.saved ? 'currentColor' : 'none'} /></button></div></div></section>;
+}

@@ -1,0 +1,28 @@
+[project]
+name = "photo-feed-backend"
+version = "0.1.0"
+description = "FastAPI and Supabase PostgreSQL backend for the classroom photo feed"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "sqlalchemy>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "python-dotenv>=1.0,<2",
+    "httpx>=0.28,<1",
+    "argon2-cffi>=23.1,<26",
+    "pillow>=11,<13",
+    "pyjwt>=2.10,<3",
+    "python-multipart>=0.0.20,<1",
+    "pg8000>=1.31,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false
